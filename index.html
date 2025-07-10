@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>4chan Sentiment & Keyword Analyzer</title>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: sans-serif; max-width: 800px; margin: 2rem auto; }
+    label, button { font-size: 1rem; }
+    input { font-size: 1rem; width: 4rem; margin-right: 1rem; }
+    .chart-container { display: flex; justify-content: space-around; flex-wrap: wrap; }
+    canvas { margin: 1rem; background: #fafafa; border: 1px solid #ddd; }
+  </style>
+</head>
+<body>
+  <h1>4chan Sentiment & Keyword Analyzer</h1>
+
+  <div>
+    <label>
+      Board: <input type="text" id="board" value="b" />  
+    </label>
+    <label>
+      Thread ID: <input type="text" id="threadId" value="936916903" />
+    </label>
+    <button id="analyzeBtn">Analyze</button>
+  </div>
+
+  <div id="info" style="margin-top: 1rem; font-size: 0.9rem;"></div>
+
+  <div class="chart-container">
+    <div>
+      <h3>Sentiment</h3>
+      <canvas id="sentimentChart" width="300" height="300"></canvas>
+    </div>
+    <div>
+      <h3>Keywords</h3>
+      <canvas id="keywordChart" width="400" height="300"></canvas>
+    </div>
+  </div>
+
+  <script>
+    const analyzeBtn = document.getElementById("analyzeBtn");
+    const infoDiv     = document.getElementById("info");
+    let sentimentChart, keywordChart;
+
+    analyzeBtn.addEventListener("click", async () => {
+      const board    = document.getElementById("board").value.trim();
+      const threadId = document.getElementById("threadId").value.trim();
+      if (!board || !threadId) return alert("Enter both board and thread ID");
+
+      infoDiv.textContent = "Loading…";
+      try {
+        const res = await fetch(`http://127.0.0.1:5000/analyze?board=${board}&thread_id=${threadId}`);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+
+        infoDiv.textContent = `/${data.board}/ thread ${data.thread_id} — ${data.post_count} posts`;
+
+        // Update Sentiment Pie Chart
+        const sentLabels = Object.keys(data.sentiment);
+        const sentValues = Object.values(data.sentiment);
+        if (sentimentChart) sentimentChart.destroy();
+        sentimentChart = new Chart(
+          document.getElementById("sentimentChart"),
+          {
+            type: 'pie',
+            data: { labels: sentLabels, datasets: [{ data: sentValues }] },
+          }
+        );
+
+        // Update Keywords Bar Chart
+        const kwLabels = data.keywords.map(k => k.word);
+        const kwValues = data.keywords.map(k => k.count);
+        if (keywordChart) keywordChart.destroy();
+        keywordChart = new Chart(
+          document.getElementById("keywordChart"),
+          {
+            type: 'bar',
+            data: {
+              labels: kwLabels,
+              datasets: [{
+                label: 'Count',
+                data: kwValues,
+                barPercentage: 0.6,
+              }]
+            },
+            options: {
+              scales: {
+                y: { beginAtZero: true, ticks: { stepSize: 1 } }
+              }
+            }
+          }
+        );
+
+      } catch (err) {
+        infoDiv.textContent = `Error: ${err.message}`;
+      }
+    });
+
+    // Auto‑run on page load
+    analyzeBtn.click();
+  </script>
+</body>
+</html>
